@@ -9,7 +9,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ReferenceLine
 } from "recharts";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = "http://localhost:8000";
 
 interface Summary {
   total_rows: number;
@@ -40,6 +40,8 @@ export default function Dashboard() {
   const [chatLoading, setChatLoading] = useState(false);
   const [tab, setTab] = useState("overview");
   const [mlMode, setMlMode] = useState<"tabular" | "text">("tabular");
+  const [qualityData, setQualityData] = useState<any>(null);
+  const [qualityLoading, setQualityLoading] = useState(false);
   const [forecastData, setForecastData] = useState<any>(null);
   const [forecastTarget, setForecastTarget] = useState("");
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -54,44 +56,29 @@ export default function Dashboard() {
   const [textError, setTextError] = useState("");
 
   useEffect(() => {
-    axios.get(API + "/api/analytics/" + id + "/summary").then(async res => {
+    axios.get(API + "/api/analytics/" + id + "/summary").then(res => {
       setSummary(res.data);
-      const numCols = res.data.numeric_columns;
-      const textCols = res.data.text_columns;
-      const all = [...textCols, ...numCols];
-      if (all.length >= 1) setXCol(all[0]);
-      if (numCols.length >= 1) setYCol(numCols[0]);
-      if (textCols.length >= 1) {
-        setTextCol(textCols[0]);
-        setTextTargetCol(textCols[textCols.length - 1]);
+      if (res.data.numeric_columns.length >= 1) {
+        setYCol(res.data.numeric_columns[0]);
+        setForecastTarget(res.data.numeric_columns[res.data.numeric_columns.length - 1]);
       }
-
-      // Auto-load last trained model if one exists
-      if (numCols.length >= 1) {
-        const defaultTarget = numCols[numCols.length - 1];
-        setForecastTarget(defaultTarget);
-        try {
-          const statusRes = await axios.get(API + "/api/forecast/" + id + "/model-status", {
-            params: { target_col: defaultTarget }
-          });
-          if (statusRes.data.exists) {
-            // Model exists — run forecast silently to restore results
-            const forecastRes = await axios.get(API + "/api/forecast/" + id + "/forecast", {
-              params: { target_col: defaultTarget }
-            });
-            setForecastData(forecastRes.data);
-            const defaults: Record<string, string> = {};
-            (forecastRes.data.numeric_input_columns || []).forEach((col: string) => {
-              defaults[col] = "";
-            });
-            setInferenceInputs(defaults);
-          }
-        } catch {
-          // No model yet — that's fine, user will train manually
-        }
+      const all = [...res.data.text_columns, ...res.data.numeric_columns];
+      if (all.length >= 1) setXCol(all[0]);
+      if (res.data.text_columns.length >= 1) {
+        setTextCol(res.data.text_columns[0]);
+        setTextTargetCol(res.data.text_columns[res.data.text_columns.length - 1]);
       }
     });
   }, [id]);
+
+  async function loadQuality() {
+    setQualityLoading(true);
+    try {
+      const res = await axios.get(API + "/api/analytics/" + id + "/quality");
+      setQualityData(res.data);
+    } catch (e) { console.error(e); }
+    setQualityLoading(false);
+  }
 
   async function loadChart() {
     if (!xCol) return;
@@ -183,13 +170,13 @@ export default function Dashboard() {
           <span className="text-sm font-medium">Dataset #{id}</span>
         </div>
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-          {["overview", "charts", "forecast", "ai"].map(t => (
+          {["overview", "quality", "charts", "forecast", "ai"].map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={"relative px-4 py-1.5 rounded-lg text-sm font-medium transition-all " + (tab === t ? "text-white" : "text-gray-400 hover:text-white")}>
               {tab === t && (
                 <motion.div layoutId="tab-pill" className="absolute inset-0 bg-violet-600 rounded-lg" style={{ zIndex: -1 }} transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />
               )}
-              {t === "ai" ? "Ask AI" : t === "forecast" ? "Forecast" : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === "ai" ? "Ask AI" : t === "forecast" ? "Forecast" : t === "quality" ? "Data Quality" : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
@@ -254,6 +241,129 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {tab === "quality" && (
+            <motion.div key="quality" {...fadeUp} className="space-y-6">
+              {!qualityData ? (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
+                  <p className="text-gray-400 text-sm mb-4">Run a quality check to identify issues before training your ML model</p>
+                  <button onClick={loadQuality} disabled={qualityLoading}
+                    className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 flex items-center gap-2 mx-auto">
+                    {qualityLoading ? (
+                      <><span className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin"></span>Analysing...</>
+                    ) : "Run Data Quality Check"}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 md:col-span-1">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Quality Score</p>
+                      <p className={"text-4xl font-bold " + (qualityData.grade_color === "emerald" ? "text-emerald-400" : qualityData.grade_color === "blue" ? "text-blue-400" : qualityData.grade_color === "amber" ? "text-amber-400" : "text-red-400")}>
+                        {qualityData.score}/100
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">{qualityData.grade}</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Duplicate Rows</p>
+                      <p className={"text-3xl font-semibold " + (qualityData.duplicate_count > 0 ? "text-amber-400" : "text-emerald-400")}>{qualityData.duplicate_count}</p>
+                      <p className="text-xs text-gray-600 mt-1">{qualityData.duplicate_percent}% of dataset</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Constant Columns</p>
+                      <p className={"text-3xl font-semibold " + (qualityData.constant_columns.length > 0 ? "text-red-400" : "text-emerald-400")}>{qualityData.constant_columns.length}</p>
+                      <p className="text-xs text-gray-600 mt-1">zero variance</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">ML Ready</p>
+                      <p className={"text-3xl font-semibold " + (qualityData.ml_ready ? "text-emerald-400" : "text-red-400")}>{qualityData.ml_ready ? "Yes" : "No"}</p>
+                    </div>
+                  </div>
+
+                  {qualityData.issues.length > 0 && (
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+                      <h3 className="text-sm font-semibold text-red-400 mb-3">Issues — fix these before training</h3>
+                      <div className="space-y-2">
+                        {qualityData.issues.map((issue: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                            <span className="text-red-400 mt-0.5">x</span>
+                            <span>{issue}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {qualityData.warnings.length > 0 && (
+                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6">
+                      <h3 className="text-sm font-semibold text-amber-400 mb-3">Warnings — worth knowing</h3>
+                      <div className="space-y-2">
+                        {qualityData.warnings.map((w: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                            <span className="text-amber-400 mt-0.5">!</span>
+                            <span>{w}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {qualityData.info.length > 0 && (
+                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-6">
+                      <h3 className="text-sm font-semibold text-blue-400 mb-3">Info</h3>
+                      <div className="space-y-2">
+                        {qualityData.info.map((item: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                            <span className="text-blue-400 mt-0.5">i</span>
+                            <span>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {qualityData.null_report.length > 0 && (
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+                      <div className="px-6 py-4 border-b border-white/[0.06]">
+                        <h3 className="text-sm font-semibold">Missing Values by Column</h3>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        {qualityData.null_report.map((col: any) => (
+                          <div key={col.column} className="flex items-center gap-3">
+                            <span className="text-xs text-gray-400 w-24 truncate">{col.column}</span>
+                            <div className="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: col.null_percent + "%" }} transition={{ duration: 0.5 }}
+                                className={"h-full rounded-full " + (col.severity === "high" ? "bg-red-500" : col.severity === "medium" ? "bg-amber-500" : "bg-blue-500")} />
+                            </div>
+                            <span className="text-xs text-gray-500 w-16 text-right">{col.null_percent}% null</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {qualityData.correlation_issues.length > 0 && (
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                      <h3 className="text-sm font-semibold mb-1">Highly Correlated Column Pairs</h3>
+                      <p className="text-xs text-gray-500 mb-4">These columns carry nearly identical information — one could be removed</p>
+                      <div className="space-y-2">
+                        {qualityData.correlation_issues.map((pair: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between bg-white/[0.02] rounded-lg px-4 py-2">
+                            <span className="text-xs text-gray-300">{pair.col1} + {pair.col2}</span>
+                            <span className="text-xs text-amber-400">{(pair.correlation * 100).toFixed(1)}% correlated</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={loadQuality} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                    Re-run quality check
+                  </button>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -430,15 +540,9 @@ export default function Dashboard() {
                           <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
                             <h3 className="text-sm font-semibold mb-1">Actual vs Predicted</h3>
                             <p className="text-xs text-gray-500 mb-1">Each dot is one test row. The diagonal line = perfect prediction. Points close to it = accurate model.</p>
-                            <div className="flex items-center gap-6 mb-5">
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-violet-500"></div>
-                                <span className="text-xs text-gray-400">Model prediction</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-px bg-white/30" style={{ borderTop: "2px dashed rgba(255,255,255,0.3)" }}></div>
-                                <span className="text-xs text-gray-400">Perfect accuracy line</span>
-                              </div>
+                            <div className="flex gap-4 mb-5">
+                              <span className="text-xs text-violet-400">Purple dots = model predictions</span>
+                              <span className="text-xs text-gray-500">White line = perfect accuracy</span>
                             </div>
                             <ResponsiveContainer width="100%" height={320}>
                               <ScatterChart>
@@ -446,7 +550,8 @@ export default function Dashboard() {
                                 <XAxis type="number" dataKey="actual" name="Actual" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Actual value", position: "insideBottom", offset: -5, fill: "#6b7280", fontSize: 11 }} />
                                 <YAxis type="number" dataKey="predicted" name="Predicted" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Predicted", angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 11 }} />
                                 <Tooltip contentStyle={{ backgroundColor: "#13131a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff" }}
-                                  cursor={{ strokeDasharray: "3 3" }} />
+                                  cursor={{ strokeDasharray: "3 3" }}
+                                  formatter={(val: any, name: string) => [val, name === "actual" ? "Actual" : "Predicted"]} />
                                 <ReferenceLine segment={[
                                   { x: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) },
                                   { x: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) }
@@ -459,15 +564,7 @@ export default function Dashboard() {
 
                         <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
                           <h3 className="text-sm font-semibold mb-1">Feature Importance (SHAP)</h3>
-                          <p className="text-xs text-gray-500 mb-4">Which columns influenced the prediction most — longer bar means stronger influence</p>
-                          <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl px-4 py-3 mb-5">
-                            <p className="text-xs text-violet-300 font-medium mb-1">What this tells you</p>
-                            <p className="text-xs text-gray-400 leading-relaxed">
-                              {forecastData.shap_importance && forecastData.shap_importance.length >= 2 ? (
-                                `"${forecastData.shap_importance[0].feature}" and "${forecastData.shap_importance[1].feature}" have the strongest influence on ${forecastData.target_column}. Focus on these columns first when trying to understand or improve predictions. "${forecastData.shap_importance[forecastData.shap_importance.length - 1].feature}" has almost no effect and could potentially be removed.`
-                              ) : "Train the model to see SHAP insights."}
-                            </p>
-                          </div>
+                          <p className="text-xs text-gray-500 mb-5">Which columns influenced the prediction most</p>
                           <ResponsiveContainer width="100%" height={Math.max(280, forecastData.shap_importance.length * 32)}>
                             <BarChart data={forecastData.shap_importance} layout="vertical" margin={{ left: 10 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />

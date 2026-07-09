@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.dataset import Dataset
+from app.services.data_quality import run_quality_check
 import pandas as pd
 import json
 import os
@@ -161,3 +162,18 @@ def get_correlations(dataset_id: int, db: Session = Depends(get_db)):
         "columns": corr_matrix.columns.tolist(),
         "matrix": corr_matrix.values.tolist()
     }
+
+@router.get("/{dataset_id}/quality")
+def get_quality_report(dataset_id: int, db: Session = Depends(get_db)):
+    """
+    Runs a full data quality check before ML training.
+    Returns a score, grade, and specific issues to fix.
+    """
+    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    try:
+        result = run_quality_check(dataset.filename)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Quality check error: {str(e)}")
