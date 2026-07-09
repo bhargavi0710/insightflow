@@ -550,8 +550,7 @@ export default function Dashboard() {
                                 <XAxis type="number" dataKey="actual" name="Actual" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Actual value", position: "insideBottom", offset: -5, fill: "#6b7280", fontSize: 11 }} />
                                 <YAxis type="number" dataKey="predicted" name="Predicted" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Predicted", angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 11 }} />
                                 <Tooltip contentStyle={{ backgroundColor: "#13131a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff" }}
-                                  cursor={{ strokeDasharray: "3 3" }}
-                                  formatter={(val: any, name: string) => [val, name === "actual" ? "Actual" : "Predicted"]} />
+                                  cursor={{ strokeDasharray: "3 3" }} />
                                 <ReferenceLine segment={[
                                   { x: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) },
                                   { x: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) }
