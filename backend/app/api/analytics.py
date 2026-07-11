@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.dataset import Dataset
 from app.services.data_quality import run_quality_check
+from app.services.anomaly_detection import run_anomaly_detection
 import pandas as pd
 import json
 import os
@@ -177,3 +178,20 @@ def get_quality_report(dataset_id: int, db: Session = Depends(get_db)):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Quality check error: {str(e)}")
+
+@router.get("/{dataset_id}/anomalies")
+def get_anomalies(dataset_id: int, contamination: float = 0.05, db: Session = Depends(get_db)):
+    """
+    Detects anomalous rows using IQR per column + Isolation Forest globally.
+    contamination: expected % of outliers as decimal (default 0.05 = 5%)
+    """
+    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    try:
+        result = run_anomaly_detection(dataset.filename, contamination)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Anomaly detection error: {str(e)}")

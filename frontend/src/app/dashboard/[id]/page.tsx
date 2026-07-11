@@ -9,7 +9,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ReferenceLine
 } from "recharts";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = "http://localhost:8000";
 
 interface Summary {
   total_rows: number;
@@ -42,6 +42,9 @@ export default function Dashboard() {
   const [mlMode, setMlMode] = useState<"tabular" | "text">("tabular");
   const [qualityData, setQualityData] = useState<any>(null);
   const [qualityLoading, setQualityLoading] = useState(false);
+  const [anomalyData, setAnomalyData] = useState<any>(null);
+  const [anomalyLoading, setAnomalyLoading] = useState(false);
+  const [anomalyError, setAnomalyError] = useState("");
   const [forecastData, setForecastData] = useState<any>(null);
   const [forecastTarget, setForecastTarget] = useState("");
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -70,6 +73,19 @@ export default function Dashboard() {
       }
     });
   }, [id]);
+
+  async function loadAnomalies() {
+    setAnomalyLoading(true);
+    setAnomalyError("");
+    setAnomalyData(null);
+    try {
+      const res = await axios.get(API + "/api/analytics/" + id + "/anomalies");
+      setAnomalyData(res.data);
+    } catch (e: any) {
+      setAnomalyError(e?.response?.data?.detail || "Could not run anomaly detection.");
+    }
+    setAnomalyLoading(false);
+  }
 
   async function loadQuality() {
     setQualityLoading(true);
@@ -170,13 +186,13 @@ export default function Dashboard() {
           <span className="text-sm font-medium">Dataset #{id}</span>
         </div>
         <div className="flex gap-1 bg-white/5 rounded-xl p-1">
-          {["overview", "quality", "charts", "forecast", "ai"].map(t => (
+          {["overview", "quality", "anomalies", "charts", "forecast", "ai"].map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={"relative px-4 py-1.5 rounded-lg text-sm font-medium transition-all " + (tab === t ? "text-white" : "text-gray-400 hover:text-white")}>
               {tab === t && (
                 <motion.div layoutId="tab-pill" className="absolute inset-0 bg-violet-600 rounded-lg" style={{ zIndex: -1 }} transition={{ type: "spring", bounce: 0.2, duration: 0.4 }} />
               )}
-              {t === "ai" ? "Ask AI" : t === "forecast" ? "Forecast" : t === "quality" ? "Data Quality" : t.charAt(0).toUpperCase() + t.slice(1)}
+              {t === "ai" ? "Ask AI" : t === "forecast" ? "Forecast" : t === "quality" ? "Data Quality" : t === "anomalies" ? "Anomalies" : t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
@@ -367,6 +383,122 @@ export default function Dashboard() {
             </motion.div>
           )}
 
+          {tab === "anomalies" && (
+            <motion.div key="anomalies" {...fadeUp} className="space-y-6">
+              {!anomalyData && !anomalyLoading && (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
+                  <p className="text-gray-400 text-sm mb-2">Detect statistically unusual rows in your dataset</p>
+                  <p className="text-gray-600 text-xs mb-6">Uses IQR method per column + Isolation Forest for global anomaly detection</p>
+                  <button onClick={loadAnomalies}
+                    className="bg-violet-600 hover:bg-violet-500 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 mx-auto flex items-center gap-2">
+                    Run Anomaly Detection
+                  </button>
+                </div>
+              )}
+
+              {anomalyLoading && (
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
+                  <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-gray-400 text-sm">Scanning {summary.total_rows.toLocaleString()} rows for anomalies...</p>
+                </div>
+              )}
+
+              {anomalyError && (
+                <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 text-center">
+                  <p className="text-red-400 text-sm font-medium mb-1">Detection failed</p>
+                  <p className="text-gray-500 text-xs">{anomalyError}</p>
+                </div>
+              )}
+
+              {anomalyData && (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Anomalies Found</p>
+                      <p className={"text-3xl font-semibold " + (anomalyData.total_anomalies > 0 ? "text-amber-400" : "text-emerald-400")}>{anomalyData.total_anomalies}</p>
+                      <p className="text-xs text-gray-600 mt-1">{anomalyData.anomaly_percent}% of dataset</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Total Rows</p>
+                      <p className="text-3xl font-semibold">{anomalyData.total_rows.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Columns Analyzed</p>
+                      <p className="text-3xl font-semibold">{anomalyData.numeric_columns_analyzed.length}</p>
+                    </div>
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Method</p>
+                      <p className="text-sm font-medium text-violet-300 mt-2">IQR + Isolation Forest</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl px-4 py-3">
+                    <p className="text-xs text-violet-300 font-medium mb-1">Summary</p>
+                    <p className="text-xs text-gray-400">{anomalyData.summary}</p>
+                  </div>
+
+                  {anomalyData.column_anomalies.length > 0 && (
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                      <h3 className="text-sm font-semibold mb-1">Outliers by Column (IQR Method)</h3>
+                      <p className="text-xs text-gray-500 mb-5">Values outside 1.5x the interquartile range are flagged as outliers</p>
+                      <div className="space-y-4">
+                        {anomalyData.column_anomalies.map((col: any) => (
+                          <div key={col.column}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-300 font-medium">{col.column}</span>
+                                <span className={"text-xs px-2 py-0.5 rounded-full " + (col.severity === "high" ? "bg-red-500/10 text-red-400" : col.severity === "medium" ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400")}>
+                                  {col.outlier_count} outliers ({col.outlier_percent}%)
+                                </span>
+                              </div>
+                              <span className="text-xs text-gray-600">normal: {col.lower_bound} to {col.upper_bound}</span>
+                            </div>
+                            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: col.outlier_percent + "%" }} transition={{ duration: 0.5 }}
+                                className={"h-full rounded-full " + (col.severity === "high" ? "bg-red-500" : col.severity === "medium" ? "bg-amber-500" : "bg-blue-500")} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {anomalyData.anomaly_rows.length > 0 && (
+                    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+                      <div className="px-6 py-4 border-b border-white/[0.06]">
+                        <h3 className="text-sm font-semibold">Most Anomalous Rows</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Rows with the most unusual combination of values, detected by Isolation Forest</p>
+                      </div>
+                      <div className="divide-y divide-white/[0.04]">
+                        {anomalyData.anomaly_rows.slice(0, 10).map((row: any, i: number) => (
+                          <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}
+                            className="px-6 py-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="text-xs text-gray-500">Row #{row.row_index}</span>
+                              <span className="text-xs text-amber-400">anomaly score: {row.anomaly_score}</span>
+                            </div>
+                            <div className="space-y-1">
+                              {row.reasons.map((reason: string, j: number) => (
+                                <p key={j} className="text-xs text-gray-400 flex items-start gap-1.5">
+                                  <span className="text-amber-500 mt-0.5">!</span>
+                                  {reason}
+                                </p>
+                              ))}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={loadAnomalies} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                    Re-run detection
+                  </button>
+                </>
+              )}
+            </motion.div>
+          )}
+
           {tab === "charts" && (
             <motion.div key="charts" {...fadeUp} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
               <h2 className="text-sm font-semibold mb-1">Chart Builder</h2>
@@ -550,7 +682,7 @@ export default function Dashboard() {
                                 <XAxis type="number" dataKey="actual" name="Actual" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Actual value", position: "insideBottom", offset: -5, fill: "#6b7280", fontSize: 11 }} />
                                 <YAxis type="number" dataKey="predicted" name="Predicted" tick={{ fontSize: 10, fill: "#6b7280" }} label={{ value: "Predicted", angle: -90, position: "insideLeft", fill: "#6b7280", fontSize: 11 }} />
                                 <Tooltip contentStyle={{ backgroundColor: "#13131a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff" }}
-                                  cursor={{ strokeDasharray: "3 3" }} />
+                                  cursor={{ strokeDasharray: "3 3" }} /> 
                                 <ReferenceLine segment={[
                                   { x: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.min(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) },
                                   { x: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)), y: Math.max(...forecastData.actual_vs_predicted.map((d: any) => d.actual)) }
