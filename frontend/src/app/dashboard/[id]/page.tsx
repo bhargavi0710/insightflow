@@ -9,7 +9,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, ReferenceLine
 } from "recharts";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Summary {
   total_rows: number;
