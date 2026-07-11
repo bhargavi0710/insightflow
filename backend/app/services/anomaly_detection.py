@@ -108,7 +108,8 @@ def run_anomaly_detection(filename: str, contamination: float = 0.05) -> dict:
 
     # Distribution of anomaly scores for chart
     score_bins = pd.cut(anomaly_scores, bins=20)
-    score_dist = score_bins.value_counts(sort=False)
+    score_dist = score_bins.value_counts()
+    score_dist = score_dist.sort_index()
     score_distribution = [
         {
             "range": str(interval),
