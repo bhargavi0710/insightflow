@@ -106,20 +106,7 @@ def run_anomaly_detection(filename: str, contamination: float = 0.05) -> dict:
             "reasons": reasons[:3] if reasons else ["Globally unusual combination of values"]
         })
 
-    # Distribution of anomaly scores for chart
-    score_bins = pd.cut(anomaly_scores, bins=20)
-    score_dist = score_bins.value_counts()
-    score_dist = score_dist.sort_index()
-    score_distribution = [
-        {
-            "range": str(interval),
-            "count": int(count),
-            "is_anomaly": float(interval.mid) < clf.offset_
-        }
-        for interval, count in score_dist.items()
-        if pd.notna(interval)
-    ]
-
+    
     return {
         "total_rows": len(df),
         "total_anomalies": total_anomalies,
@@ -128,6 +115,5 @@ def run_anomaly_detection(filename: str, contamination: float = 0.05) -> dict:
         "numeric_columns_analyzed": numeric_cols,
         "column_anomalies": sorted(column_anomalies, key=lambda x: x["outlier_count"], reverse=True),
         "anomaly_rows": anomaly_rows,
-        "score_distribution": score_distribution,
         "summary": f"Found {total_anomalies} anomalous rows ({round(total_anomalies/len(df)*100,1)}%) out of {len(df)} total rows across {len(numeric_cols)} numeric columns."
     }
