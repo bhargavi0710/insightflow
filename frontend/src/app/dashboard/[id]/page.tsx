@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [qualityData, setQualityData] = useState<any>(null);
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityRefreshing, setQualityRefreshing] = useState(false);
+  const [qualityTimestamp, setQualityTimestamp] = useState<string>("");
   const [anomalyData, setAnomalyData] = useState<any>(null);
   const [anomalyLoading, setAnomalyLoading] = useState(false);
   const [anomalyError, setAnomalyError] = useState("");
@@ -98,6 +99,7 @@ export default function Dashboard() {
     try {
       const res = await axios.get(API + "/api/analytics/" + id + "/quality");
       setQualityData(res.data);
+      setQualityTimestamp(new Date().toLocaleTimeString());
     } catch (e) { console.error(e); }
     setQualityLoading(false);
     setQualityRefreshing(false);
@@ -272,6 +274,7 @@ export default function Dashboard() {
               {!qualityData ? (
                 <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center">
                   <p className="text-gray-400 text-sm mb-4">Run a quality check to identify issues before training your ML model</p>
+                  {qualityTimestamp && <p className="text-xs text-gray-600">Last checked: {qualityTimestamp}</p>}
                   <button onClick={() => loadQuality(true)} disabled={qualityLoading}
                     className="bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all active:scale-95 flex items-center gap-2 mx-auto">
                     {qualityLoading ? (
