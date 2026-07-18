@@ -375,8 +375,8 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  <button onClick={loadQuality} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
-                    Re-run quality check
+               <button onClick={loadQuality} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">
+                    {qualityLoading ? "Running..." : "Re-run quality check"}
                   </button>
                 </>
               )}
