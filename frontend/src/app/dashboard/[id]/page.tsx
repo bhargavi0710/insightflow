@@ -385,11 +385,14 @@ export default function Dashboard() {
                     </div>
                   )}
 
-<button onClick={() => loadQuality(true)} className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1.5">
-                    {qualityRefreshing ? (
-                      <><span className="w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin"></span>Refreshing...</>
-                    ) : "Re-run quality check"}
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => loadQuality(true)} className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1.5">
+                      {qualityRefreshing ? (
+                        <><span className="w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin"></span>Refreshing...</>
+                      ) : "Re-run quality check"}
+                    </button>
+                    {qualityTimestamp && <p className="text-xs text-gray-600">Last checked: {qualityTimestamp}</p>}
+                  </div>
                 </>
               )}
             </motion.div>
