@@ -147,11 +147,10 @@ def run_forecast(filename: str, target_col: str, dataset_id: int = None):
         }
         joblib.dump(model_data, get_model_path(dataset_id, target_col))
 
-        mae_val = None
+        test_mae_val = None
         if not is_classification:
             from sklearn.metrics import mean_absolute_error as _mae
-            _y_pred_all = model.predict(X)
-            mae_val = round(float(_mae(y, _y_pred_all)), 3)
+            test_mae_val = round(float(_mae(y_test, y_pred)), 3)
 
         meta = {
             "is_classification": is_classification,
@@ -160,7 +159,7 @@ def run_forecast(filename: str, target_col: str, dataset_id: int = None):
             "numeric_cols": numeric_cols,
             "class_names": [str(c) for c in class_names] if class_names else None,
             "col_means": col_means,
-            "mae": mae_val,
+            "test_mae": test_mae_val,
         }
         with open(get_meta_path(dataset_id, target_col), "w") as f:
             json.dump(meta, f)
@@ -272,7 +271,7 @@ def run_inference(dataset_id: int, target_col: str, input_values: dict) -> dict:
         import json as _json
         with open(meta_path) as f:
             meta = _json.load(f)
-        mae = meta.get("mae", None)
+        mae = meta.get("test_mae", None)
         prediction_val = round(float(prediction_raw), 3)
         result = {
             "prediction": prediction_val,

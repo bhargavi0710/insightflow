@@ -708,9 +708,17 @@ export default function Dashboard() {
                           </div>
                         )}
 
-                        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                       <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
                           <h3 className="text-sm font-semibold mb-1">Feature Importance (SHAP)</h3>
-                          <p className="text-xs text-gray-500 mb-5">Which columns influenced the prediction most</p>
+                          <p className="text-xs text-gray-500 mb-4">Which columns influenced the prediction most — longer bar means stronger influence</p>
+                          {forecastData.shap_importance && forecastData.shap_importance.length >= 2 && (
+                            <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl px-4 py-3 mb-5">
+                              <p className="text-xs text-violet-300 font-medium mb-1">What this tells you</p>
+                              <p className="text-xs text-gray-400 leading-relaxed">
+                                {`"${forecastData.shap_importance[0].feature}" and "${forecastData.shap_importance[1].feature}" have the strongest influence on ${forecastData.target_column}. Focus on these columns first when trying to understand predictions. "${forecastData.shap_importance[forecastData.shap_importance.length - 1].feature}" has almost no effect and could potentially be removed from your dataset.`}
+                              </p>
+                            </div>
+                          )}
                           <ResponsiveContainer width="100%" height={Math.max(280, forecastData.shap_importance.length * 32)}>
                             <BarChart data={forecastData.shap_importance} layout="vertical" margin={{ left: 10 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
